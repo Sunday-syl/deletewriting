@@ -1,0 +1,844 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>心流写作 - 基于消失倒计时的专注写作工具</title>
+    <style>
+        :root {
+            --primary-color: #3498db;
+            --danger-color: #e74c3c;
+            --success-color: #2ecc71;
+            --dark-color: #2c3e50;
+            --light-color: #ecf0f1;
+            --font-main: 'PingFang SC', 'Microsoft YaHei', sans-serif;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: var(--font-main);
+            background-color: var(--light-color);
+            color: var(--dark-color);
+            transition: background-color 0.5s ease;
+            overflow: hidden;
+            height: 100vh;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .logo {
+            font-size: 24px;
+            font-weight: bold;
+            color: var(--primary-color);
+        }
+        
+        .settings-btn {
+            background: none;
+            border: none;
+            color: var(--dark-color);
+            cursor: pointer;
+            font-size: 16px;
+        }
+        
+        .timer-container {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        
+        .timer {
+            font-size: 18px;
+            color: var(--dark-color);
+            transition: color 0.3s ease;
+        }
+        
+        .timer.warning {
+            color: var(--danger-color);
+            font-weight: bold;
+            animation: pulse 0.5s infinite alternate;
+        }
+        
+        @keyframes pulse {
+            from { opacity: 1; }
+            to { opacity: 0.5; }
+        }
+        
+        .editor-container {
+            flex-grow: 1;
+            position: relative;
+            border-radius: 5px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            background-color: white;
+            transition: all 0.3s ease;
+        }
+        
+        .editor {
+            width: 100%;
+            height: 100%;
+            padding: 20px;
+            border: none;
+            resize: none;
+            font-family: var(--font-main);
+            font-size: 18px;
+            line-height: 1.6;
+            color: var(--dark-color);
+            background-color: transparent;
+            z-index: 10;
+            position: relative;
+        }
+        
+        .editor:focus {
+            outline: none;
+        }
+        
+        .stats {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 20px;
+            font-size: 14px;
+            color: var(--dark-color);
+        }
+        
+        .danger-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(231, 76, 60, 0.2);
+            z-index: 100;
+            display: none;
+            pointer-events: none;
+        }
+        
+        .danger-overlay.active {
+            display: block;
+            animation: flash 0.5s infinite alternate;
+        }
+        
+        @keyframes flash {
+            from { background-color: rgba(231, 76, 60, 0.2); }
+            to { background-color: rgba(231, 76, 60, 0.4); }
+        }
+        
+        .settings-panel {
+            position: fixed;
+            top: 0;
+            right: -300px;
+            width: 300px;
+            height: 100%;
+            background-color: white;
+            box-shadow: -2px 0 5px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            transition: right 0.3s ease;
+            z-index: 200;
+            overflow-y: auto;
+        }
+        
+        .settings-panel.active {
+            right: 0;
+        }
+        
+        .settings-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .close-settings {
+            background: none;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+        }
+        
+        .settings-section {
+            margin-bottom: 20px;
+        }
+        
+        .settings-section h3 {
+            margin-bottom: 10px;
+            color: var(--primary-color);
+        }
+        
+        .setting-item {
+            margin-bottom: 15px;
+        }
+        
+        .setting-item label {
+            display: block;
+            margin-bottom: 5px;
+        }
+        
+        .setting-item select, .setting-item input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        
+        .ambient-options {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        
+        .ambient-option {
+            padding: 8px 12px;
+            background-color: #f1f1f1;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        
+        .ambient-option:hover, .ambient-option.active {
+            background-color: var(--primary-color);
+            color: white;
+        }
+        
+        .word-count {
+            font-weight: bold;
+        }
+        
+        .typing-speed {
+            color: var(--primary-color);
+        }
+        
+        .background-effect {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            opacity: 0.1;
+            z-index: 1;
+        }
+        
+        /* 打字机效果的背景 */
+        .typewriter-bg {
+            background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50"><circle cx="25" cy="25" r="2" fill="%232c3e50"/></svg>');
+            background-size: 50px 50px;
+        }
+        
+        /* 墨水扩散效果 */
+        .ink-bg {
+            background: radial-gradient(circle at center, rgba(44, 62, 80, 0.1) 0%, rgba(44, 62, 80, 0) 70%);
+        }
+        
+        /* 纸张质感 */
+        .paper-bg {
+            background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"><rect width="100" height="100" fill="%23f9f9f9"/><path d="M0 0L100 100M100 0L0 100" stroke="%23f0f0f0" stroke-width="0.5"/></svg>');
+            background-size: 100px 100px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo">心流写作</div>
+            <button class="settings-btn" id="settingsBtn">设置</button>
+        </header>
+        
+        <div class="timer-container">
+            <div class="timer" id="timer">倒计时: 5秒</div>
+        </div>
+        
+        <div class="editor-container">
+            <div class="background-effect" id="backgroundEffect"></div>
+            <textarea class="editor" id="editor" placeholder="开始写作吧...停止输入将触发倒计时，文字可能会消失！"></textarea>
+        </div>
+        
+        <div class="stats">
+            <div class="word-count" id="wordCount">字数: 0</div>
+            <div class="writing-time" id="writingTime">时间: 00:00</div>
+            <div class="typing-speed" id="typingSpeed">速度: 0 字/秒</div>
+        </div>
+    </div>
+    
+    <div class="danger-overlay" id="dangerOverlay"></div>
+    
+    <div class="settings-panel" id="settingsPanel">
+        <div class="settings-header">
+            <h2>设置</h2>
+            <button class="close-settings" id="closeSettings">×</button>
+        </div>
+        
+        <div class="settings-section">
+            <h3>消失机制</h3>
+            <div class="setting-item">
+                <label for="countdownTime">倒计时时间 (秒)</label>
+                <input type="number" id="countdownTime" min="1" max="300" value="5">
+            </div>
+            
+            <div class="setting-item">
+                <label for="disappearMode">消失模式</label>
+                <select id="disappearMode">
+                    <option value="mild">温和模式 (模糊显示)</option>
+                    <option value="standard" selected>标准模式 (删除部分)</option>
+                    <option value="strict">严格模式 (删除全部)</option>
+                </select>
+            </div>
+        </div>
+        
+        <div class="settings-section">
+            <h3>主题设置</h3>
+            <div class="setting-item">
+                <label for="themeSelect">主题</label>
+                <select id="themeSelect">
+                    <option value="light" selected>明亮</option>
+                    <option value="dark">暗黑</option>
+                    <option value="sepia">护眼</option>
+                    <option value="vintage">复古</option>
+                </select>
+            </div>
+        </div>
+        
+        <div class="settings-section">
+            <h3>目标设定</h3>
+            <div class="setting-item">
+                <label for="wordGoal">字数目标</label>
+                <select id="wordGoal">
+                    <option value="0">无限制</option>
+                    <option value="500">500字</option>
+                    <option value="1000">1000字</option>
+                    <option value="2000">2000字</option>
+                </select>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // DOM元素
+        const editor = document.getElementById('editor');
+        const timer = document.getElementById('timer');
+        const wordCount = document.getElementById('wordCount');
+        const typingSpeed = document.getElementById('typingSpeed');
+        const writingTime = document.getElementById('writingTime');
+        const dangerOverlay = document.getElementById('dangerOverlay');
+        const settingsBtn = document.getElementById('settingsBtn');
+        const settingsPanel = document.getElementById('settingsPanel');
+        const closeSettings = document.getElementById('closeSettings');
+        const countdownTimeInput = document.getElementById('countdownTime');
+        const disappearModeSelect = document.getElementById('disappearMode');
+        const themeSelect = document.getElementById('themeSelect');
+        const wordGoalSelect = document.getElementById('wordGoal');
+        
+        // 音频元素
+        const audioElements = {
+            rain: new Audio('https://assets.mixkit.co/sfx/preview/mixkit-light-rain-loop-2393.mp3'),
+            cafe: new Audio('https://assets.mixkit.co/sfx/preview/mixkit-coffee-shop-ambience-583.mp3'),
+            keyboard: new Audio('https://assets.mixkit.co/sfx/preview/mixkit-keyboard-typing-1386.mp3'),
+            forest: new Audio('https://assets.mixkit.co/sfx/preview/mixkit-forest-birds-ambience-1210.mp3')
+        };
+        
+        // 设置所有音频循环播放
+        Object.values(audioElements).forEach(audio => {
+            audio.loop = true;
+        });
+        
+        // 设置选项
+        let settings = {
+            countdownTime: 5, // 默认5秒
+            disappearMode: 'standard', // 标准模式
+            theme: 'light',
+            wordGoal: 0
+        };
+        
+        // 状态变量
+        let countdown = null;
+        let countdownValue = settings.countdownTime;
+        let isTyping = false;
+        let lastTypingTime = Date.now();
+        let typedCharacters = 0;
+        let typingInterval = null;
+        let isWarning = false;
+        let recentTypingSpeed = [];
+        let goalAchieved = false;
+        let sessionStartTime = Date.now();
+        let totalWritingTime = 0;
+        let writingTimeInterval = null;
+        let isWriting = false;
+        
+        // 初始化
+        function init() {
+            updateWordCount();
+            startTypingSpeedCalculation();
+            startWritingTimeTracking();
+            loadSettings();
+            applyTheme(settings.theme);
+            
+            // 事件监听器
+            editor.addEventListener('input', handleInput);
+            editor.addEventListener('keydown', resetCountdown);
+            settingsBtn.addEventListener('click', toggleSettings);
+            closeSettings.addEventListener('click', toggleSettings);
+            countdownTimeInput.addEventListener('change', updateCountdownTime);
+            disappearModeSelect.addEventListener('change', updateDisappearMode);
+            themeSelect.addEventListener('change', handleThemeChange);
+            wordGoalSelect.addEventListener('change', updateWordGoal);
+            
+            // 背景效果选项
+            document.querySelectorAll('.ambient-option[data-bg]').forEach(option => {
+                option.addEventListener('click', function() {
+                    const bg = this.getAttribute('data-bg');
+                    setBackgroundEffect(bg);
+                    
+                    // 更新活跃状态
+                    document.querySelectorAll('.ambient-option[data-bg]').forEach(opt => {
+                        opt.classList.remove('active');
+                    });
+                    this.classList.add('active');
+                });
+            });
+            
+            // 声音选项
+            document.querySelectorAll('.ambient-option[data-sound]').forEach(option => {
+                option.addEventListener('click', function() {
+                    const sound = this.getAttribute('data-sound');
+                    setSound(sound);
+                    
+                    // 更新活跃状态
+                    document.querySelectorAll('.ambient-option[data-sound]').forEach(opt => {
+                        opt.classList.remove('active');
+                    });
+                    this.classList.add('active');
+                });
+            });
+        }
+        
+        // 处理输入
+        function handleInput() {
+            isTyping = true;
+            isWriting = true;
+            lastTypingTime = Date.now();
+            typedCharacters++;
+            
+            // 记录当前时间戳和输入字符数，用于计算实时速度
+            recentTypingSpeed.push({
+                timestamp: Date.now(),
+                characters: 1
+            });
+            
+            // 只保留最近10秒的数据
+            const tenSecondsAgo = Date.now() - 10000;
+            recentTypingSpeed = recentTypingSpeed.filter(entry => entry.timestamp > tenSecondsAgo);
+            
+            updateWordCount();
+            resetCountdown();
+        }
+        
+        // 更新字数统计
+        function updateWordCount() {
+            const text = editor.value;
+            const count = text.length;
+            wordCount.textContent = `字数: ${count}`;
+            
+            // 检查是否达到目标字数
+            if (settings.wordGoal > 0 && count >= settings.wordGoal && !goalAchieved) {
+                goalAchieved = true;
+                clearInterval(countdown);
+                countdown = null;
+                
+                // 显示成功提示
+                showGoalAchievedMessage(count);
+            }
+        }
+        
+        // 开始写作时间跟踪
+        function startWritingTimeTracking() {
+            writingTimeInterval = setInterval(() => {
+                if (isWriting) {
+                    totalWritingTime += 1;
+                    updateWritingTimeDisplay();
+                    
+                    // 如果超过3秒没有输入，认为暂停写作
+                    const now = Date.now();
+                    if ((now - lastTypingTime) / 1000 > 3) {
+                        isWriting = false;
+                    }
+                }
+            }, 1000);
+        }
+        
+        // 更新写作时间显示
+        function updateWritingTimeDisplay() {
+            const minutes = Math.floor(totalWritingTime / 60);
+            const seconds = totalWritingTime % 60;
+            const formattedTime = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            writingTime.textContent = `时间: ${formattedTime}`;
+        }
+        
+        // 显示目标达成消息
+        function showGoalAchievedMessage(count) {
+            // 创建一个弹出消息
+            const messageContainer = document.createElement('div');
+            messageContainer.style.position = 'fixed';
+            messageContainer.style.top = '50%';
+            messageContainer.style.left = '50%';
+            messageContainer.style.transform = 'translate(-50%, -50%)';
+            messageContainer.style.backgroundColor = 'rgba(46, 204, 113, 0.9)';
+            messageContainer.style.color = 'white';
+            messageContainer.style.padding = '20px';
+            messageContainer.style.borderRadius = '10px';
+            messageContainer.style.boxShadow = '0 4px 8px rgba(0,0,0,0.2)';
+            messageContainer.style.zIndex = '1000';
+            messageContainer.style.textAlign = 'center';
+            
+            messageContainer.innerHTML = `
+                <h2>恭喜！</h2>
+                <p>您已完成${settings.wordGoal}字的写作目标！</p>
+                <p>倒计时已停止，您可以继续安心写作。</p>
+                <button id="closeMessage" style="margin-top: 15px; padding: 8px 15px; background-color: white; color: #2ecc71; border: none; border-radius: 5px; cursor: pointer;">关闭</button>
+            `;
+            
+            document.body.appendChild(messageContainer);
+            
+            // 添加关闭按钮事件
+            document.getElementById('closeMessage').addEventListener('click', function() {
+                document.body.removeChild(messageContainer);
+            });
+        }
+        
+        // 开始计算打字速度
+        function startTypingSpeedCalculation() {
+            typingInterval = setInterval(() => {
+                const now = Date.now();
+                const elapsed = (now - lastTypingTime) / 1000;
+                
+                if (elapsed > 2 && isTyping && !goalAchieved) {
+                    isTyping = false;
+                    startCountdown();
+                }
+                
+                // 计算实时打字速度 (字/秒)
+                updateTypingSpeedDisplay();
+                
+            }, 1000); // 每秒更新一次
+        }
+        
+        // 更新打字速度显示
+        function updateTypingSpeedDisplay() {
+            // 计算最近10秒内的打字速度
+            const now = Date.now();
+            const recentEntries = recentTypingSpeed.filter(entry => entry.timestamp > now - 10000);
+            
+            if (recentEntries.length > 0) {
+                // 计算总字数除以总时间
+                const totalCharacters = editor.value.length;
+                const timeInMinutes = totalWritingTime / 60;
+                
+                // 避免除以零
+                if (timeInMinutes > 0) {
+                    const speedPerMinute = Math.round(totalCharacters / timeInMinutes);
+                    const speedPerSecond = (speedPerMinute / 60).toFixed(1);
+                    typingSpeed.textContent = `速度: ${speedPerSecond} 字/秒`;
+                } else {
+                    typingSpeed.textContent = `速度: 0 字/秒`;
+                }
+            } else {
+                typingSpeed.textContent = `速度: 0 字/秒`;
+            }
+        }
+        
+        // 开始倒计时
+        function startCountdown() {
+            if (countdown !== null) {
+                clearInterval(countdown);
+            }
+            
+            if (goalAchieved) {
+                return; // 如果已达成目标，不启动倒计时
+            }
+            
+            countdownValue = settings.countdownTime;
+            updateTimerDisplay();
+            
+            countdown = setInterval(() => {
+                countdownValue--;
+                updateTimerDisplay();
+                
+                // 当倒计时达到80%时显示警告
+                if (countdownValue <= settings.countdownTime * 0.2 && !isWarning) {
+                    showWarning();
+                }
+                
+                // 当倒计时结束时执行消失操作
+                if (countdownValue <= 0) {
+                    clearInterval(countdown);
+                    executeDisappearAction();
+                    // 问题1修复：重新启动倒计时
+                    if (!goalAchieved) {
+                        setTimeout(() => {
+                            startCountdown();
+                        }, 500);
+                    }
+                }
+            }, 1000);
+        }
+        
+        // 重置倒计时
+        function resetCountdown() {
+            if (countdown !== null) {
+                clearInterval(countdown);
+                countdown = null;
+            }
+            
+            if (goalAchieved) {
+                return; // 如果已达成目标，不重置倒计时
+            }
+            
+            countdownValue = settings.countdownTime;
+            updateTimerDisplay();
+            hideWarning();
+        }
+        
+        // 更新计时器显示
+        function updateTimerDisplay() {
+            if (goalAchieved) {
+                timer.textContent = `目标已达成！`;
+                timer.style.color = 'var(--success-color)';
+                return;
+            }
+            
+            timer.textContent = `倒计时: ${countdownValue}秒`;
+            
+            if (countdownValue <= settings.countdownTime * 0.2) {
+                timer.classList.add('warning');
+            } else {
+                timer.classList.remove('warning');
+            }
+        }
+        
+        // 显示警告
+        function showWarning() {
+            isWarning = true;
+            dangerOverlay.classList.add('active');
+        }
+        
+        // 隐藏警告
+        function hideWarning() {
+            isWarning = false;
+            dangerOverlay.classList.remove('active');
+        }
+        
+        // 执行消失操作
+        function executeDisappearAction() {
+            const text = editor.value;
+            
+            switch (settings.disappearMode) {
+                case 'mild':
+                    // 温和模式：模糊显示文本
+                    editor.style.color = 'transparent';
+                    editor.style.textShadow = '0 0 5px rgba(0,0,0,0.5)';
+                    
+                    // 继续输入时恢复
+                    const restoreText = function() {
+                        editor.style.color = '';
+                        editor.style.textShadow = '';
+                        editor.removeEventListener('keydown', restoreText);
+                    };
+                    
+                    editor.addEventListener('keydown', restoreText);
+                    break;
+                    
+                case 'standard':
+                    // 标准模式：删除最后5个字符
+                    if (text.length > 0) {
+                        editor.value = text.substring(0, text.length - 5);
+                    }
+                    break;
+                    
+                case 'strict':
+                    // 严格模式：删除全部内容
+                    editor.value = '';
+                    break;
+            }
+            
+            updateWordCount();
+        }
+        
+        // 切换设置面板
+        function toggleSettings() {
+            settingsPanel.classList.toggle('active');
+        }
+        
+        // 更新倒计时时间
+        function updateCountdownTime() {
+            const newTime = parseInt(countdownTimeInput.value);
+            if (newTime >= 1 && newTime <= 300) {
+                settings.countdownTime = newTime;
+                countdownValue = newTime;
+                updateTimerDisplay();
+                saveSettings();
+            }
+        }
+        
+        // 更新消失模式
+        function updateDisappearMode() {
+            settings.disappearMode = disappearModeSelect.value;
+            saveSettings();
+        }
+        
+        // 更新字数目标
+        function updateWordGoal() {
+            settings.wordGoal = parseInt(wordGoalSelect.value);
+            goalAchieved = false; // 重置目标达成状态
+            updateTimerDisplay();
+            saveSettings();
+        }
+        
+        // 处理主题变更
+        function handleThemeChange() {
+            const newTheme = themeSelect.value;
+            settings.theme = newTheme;
+            applyTheme(newTheme);
+            saveSettings();
+        }
+        
+        // 应用主题
+        function applyTheme(theme) {
+            const body = document.body;
+            const editorContainer = document.querySelector('.editor-container');
+            
+            // 移除所有主题类
+            body.classList.remove('theme-light', 'theme-dark', 'theme-sepia', 'theme-vintage');
+            
+            // 应用新主题
+            switch (theme) {
+                case 'dark':
+                    body.style.backgroundColor = '#2c3e50';
+                    body.style.color = '#ecf0f1';
+                    editorContainer.style.backgroundColor = '#34495e';
+                    editor.style.color = '#ecf0f1';
+                    break;
+                    
+                case 'sepia':
+                    body.style.backgroundColor = '#f4ecd8';
+                    body.style.color = '#5b4636';
+                    editorContainer.style.backgroundColor = '#fff7e6';
+                    editor.style.color = '#5b4636';
+                    break;
+                    
+                case 'vintage':
+                    body.style.backgroundColor = '#d5c4a1';
+                    body.style.color = '#402e2a';
+                    editorContainer.style.backgroundColor = '#e6ddc6';
+                    editor.style.color = '#402e2a';
+                    break;
+                    
+                default: // light
+                    body.style.backgroundColor = '#ecf0f1';
+                    body.style.color = '#2c3e50';
+                    editorContainer.style.backgroundColor = 'white';
+                    editor.style.color = '#2c3e50';
+                    break;
+            }
+        }
+        
+        // 设置背景效果
+        function setBackgroundEffect(effect) {
+            settings.background = effect;
+            backgroundEffect.className = 'background-effect';
+            
+            switch (effect) {
+                case 'typewriter':
+                    backgroundEffect.classList.add('typewriter-bg');
+                    backgroundEffect.style.opacity = '0.1';
+                    break;
+                case 'ink':
+                    backgroundEffect.classList.add('ink-bg');
+                    backgroundEffect.style.opacity = '0.2';
+                    break;
+                case 'paper':
+                    backgroundEffect.classList.add('paper-bg');
+                    backgroundEffect.style.opacity = '0.15';
+                    break;
+                default:
+                    backgroundEffect.style.opacity = '0';
+                    break;
+            }
+            
+            saveSettings();
+        }
+        
+        // 设置声音
+        function setSound(sound) {
+            // 先停止所有声音
+            Object.values(audioElements).forEach(audio => {
+                audio.pause();
+                audio.currentTime = 0;
+            });
+            
+            settings.sound = sound;
+            
+            // 播放选定的声音
+            if (sound !== 'none' && audioElements[sound]) {
+                audioElements[sound].volume = 0.3; // 设置音量
+                audioElements[sound].play().catch(e => {
+                    console.log('无法播放音频，可能需要用户交互:', e);
+                });
+            }
+            
+            saveSettings();
+        }
+        
+        // 保存设置到本地存储
+        function saveSettings() {
+            localStorage.setItem('flowstate-settings', JSON.stringify(settings));
+        }
+        
+        // 从本地存储加载设置
+        function loadSettings() {
+            const savedSettings = localStorage.getItem('flowstate-settings');
+            if (savedSettings) {
+                const parsedSettings = JSON.parse(savedSettings);
+                
+                // 只保留我们需要的设置
+                settings = {
+                    countdownTime: parsedSettings.countdownTime || 5,
+                    disappearMode: parsedSettings.disappearMode || 'standard',
+                    theme: parsedSettings.theme || 'light',
+                    wordGoal: parsedSettings.wordGoal || 0
+                };
+                
+                // 应用已保存的设置
+                countdownTimeInput.value = settings.countdownTime;
+                disappearModeSelect.value = settings.disappearMode;
+                themeSelect.value = settings.theme;
+                wordGoalSelect.value = settings.wordGoal;
+            }
+        }
+        
+        // 清理函数 - 在页面关闭前保存数据
+        window.addEventListener('beforeunload', function() {
+            saveSettings();
+            clearInterval(typingInterval);
+            clearInterval(writingTimeInterval);
+        });
+        
+        // 初始化应用
+        init();
+    </script>
+</body>
+</html> 
